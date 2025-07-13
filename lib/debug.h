@@ -47,7 +47,7 @@ extern "C" {
  * typically through compiler command line.
  * Value must be a number. */
 #ifndef DEBUGLEVEL
-#  define DEBUGLEVEL 0
+#  define DEBUGLEVEL 7
 #endif
 
 
@@ -56,7 +56,7 @@ extern "C" {
  * note : currently useless.
  * Value must be stderr or stdout */
 #ifndef DEBUGFILE
-#  define DEBUGFILE stderr
+#  define DEBUGFILE stdout
 #endif
 
 

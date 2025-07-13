@@ -159,7 +159,7 @@ static U32 FIO_readLE32(const void* memPtr)
 /*-************************************
 *  Macros
 **************************************/
-#define DISPLAY(...)         fprintf(stderr, __VA_ARGS__)
+#define DISPLAY(...)         fprintf(stdout, __VA_ARGS__)
 
 static int g_displayLevel = 2;   /* 0 : no display;   1: errors;   2 : + result + interaction + warnings;   3 : + progression;   4 : + information */
 #define DISPLAYLEVEL(l, ...) if (g_displayLevel>=l) { DISPLAY(__VA_ARGS__); }
@@ -403,7 +403,7 @@ unsigned long long FIO_compressFilename(const char* output_filename, const char*
             break;
         }
 
-        DISPLAYUPDATE(2, "\rRead : %u MB  ==> %.2f%%   ", (U32)(filesize>>20), (double)(compressedfilesize/filesize)*100);
+        DISPLAYUPDATE(2, "\rRead : %u MB  ==> %.2f%%   ", (U32)(filesize>>20), (double)(compressedfilesize*10000/filesize)/100);
     }
 
     /* Checksum */
@@ -420,7 +420,7 @@ unsigned long long FIO_compressFilename(const char* output_filename, const char*
     /* Status */
     DISPLAYLEVEL(2, "\r%79s\r", "");
     DISPLAYLEVEL(2,"Compressed %llu bytes into %llu bytes ==> %.2f%%\n",
-        (unsigned long long) filesize, (unsigned long long) compressedfilesize, (double)(compressedfilesize/filesize)*100);
+        (unsigned long long) filesize, (unsigned long long) compressedfilesize, (double)(compressedfilesize*10000/filesize)/100);
 
     /* clean */
     free(in_buff);

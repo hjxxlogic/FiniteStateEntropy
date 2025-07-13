@@ -213,3 +213,5 @@ size_t HUF_readStats(BYTE* huffWeight, size_t hwSize, U32* rankStats,
     *nbSymbolsPtr = (U32)(oSize+1);
     return iSize+1;
 }
+
+int gFSE_TABLESTEP = 0;

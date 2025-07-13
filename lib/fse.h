@@ -496,6 +496,7 @@ MEM_STATIC void FSE_initCState(FSE_CState_t* statePtr, const FSE_CTable* ct)
     statePtr->stateLog = tableLog;
 }
 
+void dump_symbolCompressionTransform(FSE_symbolCompressionTransform* symbolTT, unsigned maxSymbolValue);
 
 /*! FSE_initCState2() :
 *   Same as FSE_initCState(), but the first symbol to include (which will be the last to be read)
@@ -662,7 +663,7 @@ MEM_STATIC unsigned FSE_endOfDState(const FSE_DState_t* DStatePtr)
 #define FSE_FUNCTION_EXTENSION
 #define FSE_DECODE_TYPE FSE_decode_t
 
-
+void dump_tableSymbol(FSE_FUNCTION_TYPE* tableSymbol, unsigned tableSize);
 #endif   /* !FSE_COMMONDEFS_ONLY */
 
 
@@ -672,7 +673,8 @@ MEM_STATIC unsigned FSE_endOfDState(const FSE_DState_t* DStatePtr)
 #define FSE_MAX_TABLELOG  (FSE_MAX_MEMORY_USAGE-2)
 #define FSE_MAX_TABLESIZE (1U<<FSE_MAX_TABLELOG)
 #define FSE_MAXTABLESIZE_MASK (FSE_MAX_TABLESIZE-1)
-#define FSE_DEFAULT_TABLELOG (FSE_DEFAULT_MEMORY_USAGE-2)
+//#define FSE_DEFAULT_TABLELOG (FSE_DEFAULT_MEMORY_USAGE-2)
+#define FSE_DEFAULT_TABLELOG 5
 #define FSE_MIN_TABLELOG 5
 
 #define FSE_TABLELOG_ABSOLUTE_MAX 15
@@ -680,11 +682,12 @@ MEM_STATIC unsigned FSE_endOfDState(const FSE_DState_t* DStatePtr)
 #  error "FSE_MAX_TABLELOG > FSE_TABLELOG_ABSOLUTE_MAX is not supported"
 #endif
 
-#define FSE_TABLESTEP(tableSize) (((tableSize)>>1) + ((tableSize)>>3) + 3)
+#define FSE_TABLESTEP_OLD(tableSize) (((tableSize)>>1) + ((tableSize)>>3) + 3)
 
+#define FSE_TABLESTEP(tableSize) (gFSE_TABLESTEP?1:FSE_TABLESTEP_OLD(tableSize))
 
 #endif /* FSE_STATIC_LINKING_ONLY */
-
+extern int gFSE_TABLESTEP;
 
 #if defined (__cplusplus)
 }

@@ -43,7 +43,7 @@
 #include <string.h>   /* strcmp, strcat */
 #include "bench.h"
 #include "fileio.h"   /* FIO_setCompressor */
-
+#include "fse.h"
 
 /*-*************************************************
 *  OS-specific Includes
@@ -97,6 +97,9 @@ static int usage(const char* programName)
     DISPLAY("%s [arg] inputFilename [outputFilename]\n", programName);
     DISPLAY("Arguments :\n");
     DISPLAY("(default): fse core loop timing tests\n");
+    DISPLAY(" -v : verbose mode\n");
+    DISPLAY(" -q : quiet mode\n");
+    DISPLAY(" -f : overwrite mode\n");
     DISPLAY(" -e : use FSE (default)\n");
     DISPLAY(" -h : use HUF\n");
     DISPLAY(" -z : use zlib's huffman\n");
@@ -104,6 +107,8 @@ static int usage(const char* programName)
     DISPLAY(" -b : benchmark mode\n");
     DISPLAY(" -i#: iteration loops [1-9](default : 4), benchmark mode only\n");
     DISPLAY(" -B#: block size (default : 32768), benchmark mode only\n");
+    DISPLAY(" -s#: spreading step size (default : 0), benchmark mode only\n");
+    DISPLAY(" -M#: table log size (default : 5), benchmark mode only\n");
     DISPLAY(" -H : display help and exit\n");
     return 0;
 }
@@ -145,8 +150,7 @@ int main(int argc, const char** argv)
 
     for(i = 1; i <= argc; i++) {
         const char* argument = argv[i];
-
-        if(!argument) continue;   /* Protection if argument empty */
+         if(!argument) continue;   /* Protection if argument empty */
 
         // Decode command (note : aggregated commands are allowed)
         if (argument[0]=='-') {
@@ -244,14 +248,23 @@ int main(int argc, const char** argv)
                         argument++;
                     }
                     break;
-
+                case 's':
+                {
+                    int tableStep = 0;
+                    tableStep = strtol(argument+1, NULL, 10);
+                    gFSE_TABLESTEP = tableStep;
+                    while(*argument != '\0') {
+                        argument++;
+                    }
+                    argument--;
+                }
+                    break;
                     /* Unrecognised command */
                 default : badusage(programName);
                 }
             }
             continue;
         }
-
         /* first provided filename is input */
         if (!input_filename) { input_filename=argument; indexFileNames=i; continue; }
 

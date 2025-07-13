@@ -218,6 +218,7 @@ size_t FSE_compressU16(void* dst, size_t maxDstSize,
     if (srcSize <= 1) return srcSize;
     if (!maxSymbolValue) maxSymbolValue = FSE_MAX_SYMBOL_VALUE;
     if (!tableLog) tableLog = FSE_DEFAULT_TABLELOG;
+
     if (maxSymbolValue > FSE_MAX_SYMBOL_VALUE) return ERROR(maxSymbolValue_tooLarge);
     if (tableLog > FSE_MAX_TABLELOG) return ERROR(tableLog_tooLarge);
 

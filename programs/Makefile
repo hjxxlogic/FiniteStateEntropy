@@ -63,7 +63,7 @@ all32: fse32 fullbench32 fuzzer32 fuzzerU16_32 fuzzerHuff0_32
 fse32: CFLAGS += -m32
 fsex32: CFLAGS += -mx32
 fse fse32 fsex32: bench.c commandline.c fileio.c xxhash.c zlibh.c \
-                  $(FSEDIR)/entropy_common.c $(FSEDIR)/hist.c \
+                  $(FSEDIR)/entropy_common.c $(FSEDIR)/hist.c $(FSEDIR)/debug.c \
                   $(FSEDIR)/fse_decompress.c $(FSEDIR)/fse_compress.c $(FSEDIR)/fseU16.c \
                   $(FSEDIR)/huf_compress.c $(FSEDIR)/huf_decompress.c
 	$(CC) $(FLAGS) $^ -o $@$(EXT)

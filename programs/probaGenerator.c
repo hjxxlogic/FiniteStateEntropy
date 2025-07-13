@@ -44,7 +44,7 @@
 *  Constants
 **************************************/
 #define MB *(1<<20)
-#define BUFFERSIZE ((1 MB) - 1)
+#define BUFFERSIZE ((10 MB) - 1)
 #define PROBATABLESIZE 4096
 #define PRIME1   2654435761U
 #define PRIME2   2246822519U

@@ -25,13 +25,13 @@
 #define FSE_STATIC_LINKING_ONLY
 #include "fse.h"
 #include "error_private.h"
-
+static unsigned int stateUssage[256]={0};
 
 /* **************************************************************
 *  Error Management
 ****************************************************************/
 #define FSE_isError ERR_isError
-
+void dump_tableU16(U16* tableU16, unsigned tableSize);
 
 /* **************************************************************
 *  Templates
@@ -63,10 +63,13 @@
  * wkspSize should be sized to handle worst case situation, which is `1<<max_tableLog * sizeof(FSE_FUNCTION_TYPE)`
  * workSpace must also be properly aligned with FSE_FUNCTION_TYPE requirements
  */
+// 在FSE tANS中，此函数构建压缩表（CTable），这是tANS编码的核心，用于定义状态转换。
+// 过程包括：规范化计数分布到表大小，分配符号到状态，并计算每个符号的deltaNbBits和deltaFindState，用于编码时的状态更新。
 size_t FSE_buildCTable_wksp(FSE_CTable* ct,
                       const short* normalizedCounter, unsigned maxSymbolValue, unsigned tableLog,
                             void* workSpace, size_t wkspSize)
 {
+    // 计算表大小和掩码，用于状态索引。
     U32 const tableSize = 1 << tableLog;
     U32 const tableMask = tableSize - 1;
     void* const ptr = ct;
@@ -74,6 +77,7 @@ size_t FSE_buildCTable_wksp(FSE_CTable* ct,
     void* const FSCT = ((U32*)ptr) + 1 /* header */ + (tableLog ? tableSize>>1 : 1) ;
     FSE_symbolCompressionTransform* const symbolTT = (FSE_symbolCompressionTransform*) (FSCT);
     U32 const step = FSE_TABLESTEP(tableSize);
+    RAWLOG(2, "spreading step: %d\n", step);
     U32 cumul[FSE_MAX_SYMBOL_VALUE+2];
 
     FSE_FUNCTION_TYPE* const tableSymbol = (FSE_FUNCTION_TYPE*)workSpace;
@@ -91,8 +95,10 @@ size_t FSE_buildCTable_wksp(FSE_CTable* ct,
      #ifdef __clang_analyzer__
      memset(tableSymbol, 0, sizeof(*tableSymbol) * tableSize);   /* useless initialization, just to keep scan-build happy */
      #endif
+     memset(symbolTT, 0, sizeof(FSE_symbolCompressionTransform) * (maxSymbolValue));
 
     /* symbol start positions */
+    // 计算累积频率（cumul），用于符号在表中的起始位置，这是tANS分布的关键步骤。
     {   U32 u;
         cumul[0] = 0;
         for (u=1; u <= maxSymbolValue+1; u++) {
@@ -106,6 +112,7 @@ size_t FSE_buildCTable_wksp(FSE_CTable* ct,
     }
 
     /* Spread symbols */
+    // 传播符号到表中，使用步长确保均匀分布，这是tANS表构建的核心，以实现近似最优编码。
     {   U32 position = 0;
         U32 symbol;
         for (symbol=0; symbol<=maxSymbolValue; symbol++) {
@@ -120,14 +127,18 @@ size_t FSE_buildCTable_wksp(FSE_CTable* ct,
 
         assert(position==0);  /* Must have initialized all positions */
     }
+    dump_tableSymbol(tableSymbol, tableSize);
 
     /* Build table */
+    // 构建nextState表（tableU16），定义从当前状态到下一个状态的转换，这是tANS解码器的基础。
     {   U32 u; for (u=0; u<tableSize; u++) {
         FSE_FUNCTION_TYPE s = tableSymbol[u];   /* note : static analyzer may not understand tableSymbol is properly initialized */
         tableU16[cumul[s]++] = (U16) (tableSize+u);   /* TableU16 : sorted by symbol order; gives next state value */
     }   }
+    dump_tableU16(tableU16, tableSize);
 
     /* Build Symbol Transformation Table */
+    // 构建符号转换表（symbolTT），计算每个符号的deltaNbBits（输出位数）和deltaFindState（新状态偏移），用于编码过程。
     {   unsigned total = 0;
         unsigned s;
         for (s=0; s<=maxSymbolValue; s++) {
@@ -153,17 +164,18 @@ size_t FSE_buildCTable_wksp(FSE_CTable* ct,
                     total +=  normalizedCounter[s];
     }   }   }   }
 
-#if 0  /* debug : symbol costs */
+#if 1  /* debug : symbol costs */
     DEBUGLOG(5, "\n --- table statistics : ");
     {   U32 symbol;
         for (symbol=0; symbol<=maxSymbolValue; symbol++) {
-            DEBUGLOG(5, "%3u: w=%3i,   maxBits=%u, fracBits=%.2f",
-                symbol, normalizedCounter[symbol],
+            DEBUGLOG(5, "%3c: w=%3i,   maxBits=%u, fracBits=%.2f",
+                symbol+'A', normalizedCounter[symbol],
                 FSE_getMaxNbBits(symbolTT, symbol),
                 (double)FSE_bitCost(symbolTT, tableLog, symbol, 8) / 256);
         }
     }
 #endif
+    dump_symbolCompressionTransform(symbolTT, maxSymbolValue);
 
     return 0;
 }
@@ -172,6 +184,7 @@ size_t FSE_buildCTable_wksp(FSE_CTable* ct,
 size_t FSE_buildCTable(FSE_CTable* ct, const short* normalizedCounter, unsigned maxSymbolValue, unsigned tableLog)
 {
     FSE_FUNCTION_TYPE tableSymbol[FSE_MAX_TABLESIZE];   /* memset() is not necessary, even if static analyzer complain about it */
+    memset(tableSymbol, 0, sizeof(tableSymbol));
     return FSE_buildCTable_wksp(ct, normalizedCounter, maxSymbolValue, tableLog, tableSymbol, sizeof(tableSymbol));
 }
 
@@ -555,13 +568,14 @@ static size_t FSE_compress_usingCTable_generic (void* dst, size_t dstSize,
                            const void* src, size_t srcSize,
                            const FSE_CTable* ct, const unsigned fast)
 {
+    // 初始化位流和状态，tANS编码从输入末尾开始逆向处理符号。
     const BYTE* const istart = (const BYTE*) src;
     const BYTE* const iend = istart + srcSize;
     const BYTE* ip=iend;
 
     BIT_CStream_t bitC;
     FSE_CState_t CState1, CState2;
-
+    //stateUssageInit();
     /* init */
     if (srcSize <= 2) return 0;
     { size_t const initError = BIT_initCStream(&bitC, dst, dstSize);
@@ -573,6 +587,7 @@ static size_t FSE_compress_usingCTable_generic (void* dst, size_t dstSize,
         FSE_initCState2(&CState1, ct, *--ip);
         FSE_initCState2(&CState2, ct, *--ip);
         FSE_encodeSymbol(&bitC, &CState1, *--ip);
+        stateUssage[CState1.value&((1<<CState1.stateLog) -1)]++;
         FSE_FLUSHBITS(&bitC);
     } else {
         FSE_initCState2(&CState2, ct, *--ip);
@@ -583,30 +598,37 @@ static size_t FSE_compress_usingCTable_generic (void* dst, size_t dstSize,
     srcSize -= 2;
     if ((sizeof(bitC.bitContainer)*8 > FSE_MAX_TABLELOG*4+7 ) && (srcSize & 2)) {  /* test bit 2 */
         FSE_encodeSymbol(&bitC, &CState2, *--ip);
+        stateUssage[CState2.value&((1<<CState2.stateLog) -1)]++;
         FSE_encodeSymbol(&bitC, &CState1, *--ip);
+        stateUssage[CState1.value&((1<<CState1.stateLog) -1)]++;
         FSE_FLUSHBITS(&bitC);
     }
 
     /* 2 or 4 encoding per loop */
+    // 双状态交替编码，优化性能：在每个步骤更新状态并可能刷新位到输出流。
     while ( ip>istart ) {
 
         FSE_encodeSymbol(&bitC, &CState2, *--ip);
-
+        stateUssage[CState2.value&((1<<CState2.stateLog) -1)]++;
         if (sizeof(bitC.bitContainer)*8 < FSE_MAX_TABLELOG*2+7 )   /* this test must be static */
             FSE_FLUSHBITS(&bitC);
 
         FSE_encodeSymbol(&bitC, &CState1, *--ip);
-
+        stateUssage[CState1.value&((1<<CState1.stateLog) -1)]++;
         if (sizeof(bitC.bitContainer)*8 > FSE_MAX_TABLELOG*4+7 ) {  /* this test must be static */
             FSE_encodeSymbol(&bitC, &CState2, *--ip);
+            stateUssage[CState2.value&((1<<CState2.stateLog) -1)]++;
             FSE_encodeSymbol(&bitC, &CState1, *--ip);
+            stateUssage[CState1.value&((1<<CState1.stateLog) -1)]++;
         }
 
         FSE_FLUSHBITS(&bitC);
     }
 
+    // 刷新最终状态，确保所有位输出，这是tANS编码的结束步骤。
     FSE_flushCState(&bitC, &CState2);
     FSE_flushCState(&bitC, &CState1);
+    stateUssagedump();
     return BIT_closeCStream(&bitC);
 }
 
@@ -629,6 +651,7 @@ size_t FSE_compressBound(size_t size) { return FSE_COMPRESSBOUND(size); }
  * Same as FSE_compress2(), but using an externally allocated scratch buffer (`workSpace`).
  * `wkspSize` size must be `(1<<tableLog)`.
  */
+// 此函数整合了tANS编码的完整过程：统计频率、规范化、构建表、写入头、实际编码。
 size_t FSE_compress_wksp (void* dst, size_t dstSize, const void* src, size_t srcSize, unsigned maxSymbolValue, unsigned tableLog, void* workSpace, size_t wkspSize)
 {
     BYTE* const ostart = (BYTE*) dst;
@@ -648,7 +671,7 @@ size_t FSE_compress_wksp (void* dst, size_t dstSize, const void* src, size_t src
     if (!maxSymbolValue) maxSymbolValue = FSE_MAX_SYMBOL_VALUE;
     if (!tableLog) tableLog = FSE_DEFAULT_TABLELOG;
 
-    /* Scan input and build symbol stats */
+    // 频率统计和规范化：将计数转换为表分布，这是tANS概率建模的起点。
     {   CHECK_V_F(maxCount, HIST_count_wksp(count, &maxSymbolValue, src, srcSize, scratchBuffer, scratchBufferSize) );
         if (maxCount == srcSize) return 1;   /* only a single symbol in src : rle */
         if (maxCount == 1) return 0;         /* each symbol present maximum once => not compressible */
@@ -658,12 +681,12 @@ size_t FSE_compress_wksp (void* dst, size_t dstSize, const void* src, size_t src
     tableLog = FSE_optimalTableLog(tableLog, srcSize, maxSymbolValue);
     CHECK_F( FSE_normalizeCount(norm, tableLog, count, srcSize, maxSymbolValue) );
 
-    /* Write table description header */
+    // 写入规范化计数作为头，用于解码器重建表。
     {   CHECK_V_F(nc_err, FSE_writeNCount(op, oend-op, norm, maxSymbolValue, tableLog) );
         op += nc_err;
     }
 
-    /* Compress */
+    // 构建表并进行编码。
     CHECK_F( FSE_buildCTable_wksp(CTable, norm, maxSymbolValue, tableLog, scratchBuffer, scratchBufferSize) );
     {   CHECK_V_F(cSize, FSE_compress_usingCTable(op, oend - op, src, srcSize, CTable) );
         if (cSize == 0) return 0;   /* not enough space for compressed data */
@@ -697,5 +720,57 @@ size_t FSE_compress (void* dst, size_t dstCapacity, const void* src, size_t srcS
     return FSE_compress2(dst, dstCapacity, src, srcSize, FSE_MAX_SYMBOL_VALUE, FSE_DEFAULT_TABLELOG);
 }
 
+void dump_tableSymbol(FSE_FUNCTION_TYPE* tableSymbol, unsigned tableSize)
+{
+    RAWLOG(2, "tableSymbol: %p\n", tableSymbol);
+    for (unsigned s=0; s<tableSize; s++)
+        RAWLOG(2, "%2i ", s);
+    RAWLOG(2, "\n");
+    for (unsigned s=0; s<tableSize; s++)
+        RAWLOG(2, "%2c ", tableSymbol[s]+'A');
+    RAWLOG(2, "\n");
+}
+void dump_tableU16(U16* tableU16, unsigned tableSize)
+{
+    RAWLOG(2, "tableU16: %p\n", tableU16);
+    for (unsigned s=0; s<tableSize; s++)
+        RAWLOG(2, "%2i ", s);
+    RAWLOG(2, "\n");
+    for (unsigned s=0; s<tableSize; s++)
+        RAWLOG(2, "%2d ", tableU16[s]-tableSize);
+    RAWLOG(2, "\n");
+}
+void dump_symbolCompressionTransform(FSE_symbolCompressionTransform* symbolTT, unsigned maxSymbolValue)
+{
+    RAWLOG(2, "symbolTT: %p\n", symbolTT);
+    for (unsigned s=0; s<=maxSymbolValue; s++)
+        RAWLOG(2, "%7c", s+'A');
+    RAWLOG(2, "\n");
+    for (unsigned s=0; s<=maxSymbolValue; s++)
+        RAWLOG(2, "%7x", symbolTT[s].deltaNbBits);
+    RAWLOG(2, "\n");
+    for (unsigned s=0; s<=maxSymbolValue; s++)
+        RAWLOG(2, "%7i", symbolTT[s].deltaFindState);
+    RAWLOG(2, "\n");
+}
+
+void stateUssageInit()
+{
+    for (int i = 0; i < 256; i++)
+    {
+        stateUssage[i] = 0;
+    }
+}
+void stateUssagedump()
+{
+    RAWLOG(2, "stateUssage:\n");
+    for (int i = 0; i < 256; i++)
+    {
+        if(stateUssage[i] > 0)
+        {
+            RAWLOG(2, "stateUssage[%d] = %d\n", i, stateUssage[i]);
+        }
+    }
+}
 
 #endif   /* FSE_COMMONDEFS_ONLY */
