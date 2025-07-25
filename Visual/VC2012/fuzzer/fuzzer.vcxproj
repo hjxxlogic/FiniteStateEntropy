@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\lib\debug.c" />
     <ClCompile Include="..\..\..\lib\entropy_common.c" />
     <ClCompile Include="..\..\..\lib\hist.c" />
     <ClCompile Include="..\..\..\lib\fse_compress.c" />
@@ -123,10 +124,8 @@
     <ClCompile>
       <PrecompiledHeader>
       </PrecompiledHeader>
-      <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <TreatWarningAsError>true</TreatWarningAsError>
       <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <Link>

@@ -26,7 +26,7 @@
 #include "fse.h"
 #include "error_private.h"
 static unsigned int stateUssage[256]={0};
-
+void stateUssagedump();
 /* **************************************************************
 *  Error Management
 ****************************************************************/
@@ -168,10 +168,13 @@ size_t FSE_buildCTable_wksp(FSE_CTable* ct,
     DEBUGLOG(5, "\n --- table statistics : ");
     {   U32 symbol;
         for (symbol=0; symbol<=maxSymbolValue; symbol++) {
-            DEBUGLOG(5, "%3c: w=%3i,   maxBits=%u, fracBits=%.2f",
+            DEBUGLOG(5, "%3c: w=%3i,   maxBits=%u, fracBits=%.2f %08x %08x",
                 symbol+'A', normalizedCounter[symbol],
                 FSE_getMaxNbBits(symbolTT, symbol),
-                (double)FSE_bitCost(symbolTT, tableLog, symbol, 8) / 256);
+                (double)FSE_bitCost(symbolTT, tableLog, symbol, 8) / 256,
+                symbolTT[symbol].deltaNbBits,
+                symbolTT[symbol].deltaFindState
+            );
         }
     }
 #endif
@@ -752,6 +755,14 @@ void dump_symbolCompressionTransform(FSE_symbolCompressionTransform* symbolTT, u
     for (unsigned s=0; s<=maxSymbolValue; s++)
         RAWLOG(2, "%7i", symbolTT[s].deltaFindState);
     RAWLOG(2, "\n");
+
+    for (unsigned s = 0; s <= maxSymbolValue; s++)
+        RAWLOG(2, "%7i", symbolTT[s].h);
+    RAWLOG(2, "\n");
+
+    for (unsigned s = 0; s <= maxSymbolValue; s++)
+        RAWLOG(2, "%7i", symbolTT[s].l);
+    RAWLOG(2, "\n");
 }
 
 void stateUssageInit()
@@ -764,11 +775,16 @@ void stateUssageInit()
 void stateUssagedump()
 {
     RAWLOG(2, "stateUssage:\n");
+    size_t total = 0;
+    for (int i = 0; i < 256; i++)
+    {
+        total += stateUssage[i];
+    }
     for (int i = 0; i < 256; i++)
     {
         if(stateUssage[i] > 0)
         {
-            RAWLOG(2, "stateUssage[%d] = %d\n", i, stateUssage[i]);
+            RAWLOG(2, "stateUssage[%d] = %d %3.3f\n", i, stateUssage[i], 1.0*stateUssage[i]*256/total);
         }
     }
 }

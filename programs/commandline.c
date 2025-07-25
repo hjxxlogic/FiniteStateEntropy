@@ -130,8 +130,10 @@ static void waitEnter(void)
     (void)unused;
 }
 
+void test();
 int main(int argc, const char** argv)
 {
+    test();
     int   i,
           forceCompress = 1,  /* default action if no argument */
           decode= 0,
